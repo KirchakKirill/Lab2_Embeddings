@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Приветствие</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../static/css/style.css">
+</head>
+<body>
+
+    <div id="chatHistory"></div>
+    <div class="container">
+
+        <!-- Поле ввода -->
+        <div class="textarea-group">
+            <textarea type="text" id="gameDesc" placeholder="Enter a description of the game"></textarea>
+        </div>
+
+        <div class="utils">
+            <div class="selectors">
+                <select id="model-select">
+                    <option value="nomic-model" selected>
+                        <span class="option-label">Nomic</span>
+                    </option>
+                    <option value="snowflake-model">
+                        <span class="option-label">SnowFlake</span>
+                    </option>
+                    <option value="mxbai-model">
+                        <span class="option-label">MXBAI</span>
+                    </option>
+                </select>
+                <select id="distanceMetric-select">
+                    <option value="L2">
+                        <span class="option-label" selected>L2</span>
+                    </option>
+                    <option value="COSINE">
+                        <span class="option-label">Cosine</span>
+                    </option>
+                    <option value="INNER_PRODUCT">
+                        <span class="option-label">Inner product</span>
+                    </option>
+                </select>
+            </div>
+            <div >
+                <button id="clearData" onClick="clearHistory()"></button>
+                <button id="sendData" onclick="postHttpServer()"></button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Результат -->
+
+<script>
+    var descFiled = document.getElementById('gameDesc');
+    var descButton = document.getElementById('sendData');
+    var chatHistory = document.getElementById('chatHistory');
+    var modelSelector = document.getElementById('model-select');
+    var metricSelector = document.getElementById('distanceMetric-select');
+
+    function clearHistory() {
+        while (chatHistory.firstChild) {
+            chatHistory.removeChild(chatHistory.firstChild);
+        }
+    }
+
+    descFiled.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            descButton.onclick();
+        }
+    });
+
+    function addMessage(text) {
+        const messageElement = document.createElement('div');
+        const messageElementText = document.createElement('span');
+
+        messageElement.classList.add('user-message');
+        messageElementText.classList.add('user-message-text');
+
+        messageElementText.textContent = text;
+        messageElement.appendChild(messageElementText);
+        chatHistory.appendChild(messageElement);
+    }
+
+    function postHttpServer() {
+        addMessage(descFiled.value)
+        const resultDiv = document.createElement("result");
+        resultDiv.classList.add('llm-message');
+        //const resultDiv = document.getElementById("result");
+        const gameDesc = document.getElementById("gameDesc").value.trim();
+        const changeMetric = metricSelector.value;
+        const changeModel = modelSelector.value;
+
+        descFiled.value = '';
+        // Сброс и индикация загрузки
+        //resultDiv.classList.remove("show", "error", "success");
+        resultDiv.innerText = "Думаю...";
+        resultDiv.style.opacity = "1";
+
+        const fetchOptions = {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ desc: gameDesc, metric: changeMetric, model: changeModel }) // Если хотим отправлять JSON
+            //body: gameDesc // Если хотим отправлять текст
+        };
+
+        fetch("http://localhost:8088/games", fetchOptions)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Ошибка HTTP: ${response.status}`);
+                }
+                return response.json(); // сервер возвращает json
+            })
+            .then(jsonResponse => {
+                chatHistory.removeChild(chatHistory.lastElementChild);
+                llm_messages(jsonResponse.desc)
+                console.log("Ответ от HttpServer:", jsonResponse);
+                //resultDiv.innerText = jsonResponse.desc; // Показываем desc из json ответа
+                //resultDiv.classList.add("success", "show");
+            })
+            .catch(error => {
+                console.error("Запрос к HttpServer завершился с ошибкой:", error);
+                resultDiv.innerText = `Ошибка: ${error.message}`;
+                //resultDiv.classList.add("error", "show");
+            });
+
+        chatHistory.appendChild(resultDiv);
+    }
+
+    function llm_messages(textes) {
+
+        for (let i = 0; i < textes.length; i++) {
+            const new_message = document.createElement("llm-message");
+            new_message.classList.add('llm-message');
+            new_message.innerHTML = textes[i];
+            chatHistory.appendChild(new_message);
+        }
+    }
+</script>
+</body>
+</html>

@@ -15,18 +15,22 @@ object VectorDB {
     fun createTableEmbedding(){
         val setupStatement = conn.createStatement()
         setupStatement.executeUpdate("CREATE EXTENSION IF NOT EXISTS VECTOR")
-        setupStatement.executeUpdate("DROP TABLE IF EXISTS GAMES")
+        setupStatement.executeUpdate("DROP TABLE IF EXISTS MXGAMES")
+        setupStatement.executeUpdate("DROP TABLE IF EXISTS MXGAMESSNOWFLAKE")
+        setupStatement.executeUpdate("DROP TABLE IF EXISTS MXGAMESMXBAI")
 
         PGvector.addVectorType(conn)
 
         val createStmt = conn.createStatement()
-        createStmt.executeUpdate("CREATE TABLE MXGAMES (id bigserial PRIMARY KEY, description TEXT NOT NULL,embedding vector(1024))")
+        createStmt.executeUpdate("CREATE TABLE MXGAMES (id bigserial PRIMARY KEY, description TEXT NOT NULL,embedding vector(768))")
+        createStmt.executeUpdate("CREATE TABLE MXGAMESSNOWFLAKE (id bigserial PRIMARY KEY, description TEXT NOT NULL,embedding vector(1024))")
+        createStmt.executeUpdate("CREATE TABLE MXGAMESMXBAI (id bigserial PRIMARY KEY, description TEXT NOT NULL,embedding vector(1024))")
     }
 
-    fun preloadData(insertData:List<InsertData>){
+    fun preloadData(insertData:List<InsertData>, tableName: String){
         conn.autoCommit = false
         try {
-            val statement = conn.prepareStatement("INSERT INTO MXGAMES (description,embedding) VALUES (?,?)")
+            val statement = conn.prepareStatement("INSERT INTO $tableName (description,embedding) VALUES (?,?)")
                 .use{ stmt ->
                     insertData.forEach { data ->
                         stmt.setString(1, data.description)
@@ -46,18 +50,30 @@ object VectorDB {
         }
     }
 
-    fun getNeighbors(emb:List<Float>, distanceMetric: DistanceMetric): MutableList<String>?{
+    fun getNeighbors(emb:List<Float>, distanceMetric: DistanceMetric, model_type: String): MutableList<String>?{
+        var tableName = ""
+        when {
+            model_type == "nomic-embed-text:v1.5" -> {
+                tableName = "MXGAMES"
+            }
+            model_type == "snowflake-arctic-embed2" -> {
+                tableName = "MXGAMESSNOWFLAKE"
+            }
+            model_type == "mxbai-embed-large" -> {
+                tableName = "MXGAMESMXBAI"
+            }
+        }
         try {
             var query:String = ""
             when {
                 distanceMetric == DistanceMetric.L2 -> {
-                    query = "SELECT * FROM MXGAMES ORDER BY embedding <-> ? LIMIT 5"
+                    query = "SELECT * FROM $tableName ORDER BY embedding <-> ? LIMIT 5"
                 }
                 distanceMetric == DistanceMetric.COSINE -> {
-                    query = "SELECT * FROM MXGAMES ORDER BY embedding <=> ? LIMIT 5"
+                    query = "SELECT * FROM $tableName ORDER BY embedding <=> ? LIMIT 5"
                 }
                 distanceMetric == DistanceMetric.INNER_PRODUCT -> {
-                    query = "SELECT * FROM MXGAMES ORDER BY embedding <#> ? LIMIT 5"
+                    query = "SELECT * FROM $tableName ORDER BY embedding <#> ? LIMIT 5"
                 }
             }
             val stmt = conn.prepareStatement(query)
@@ -79,8 +95,6 @@ object VectorDB {
         }
 
     }
-
-
 
 }
 

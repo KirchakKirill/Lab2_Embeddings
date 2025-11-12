@@ -21,7 +21,7 @@ class GameManager
 
     private val key = System.getenv("KEY")
 
-    private val  httpClient: OkHttpClient
+    private val httpClient: OkHttpClient
 
     init {
         this.httpClient = OkHttpClient.Builder().addInterceptor {
@@ -84,9 +84,9 @@ class GameManager
         return@coroutineScope Dresult
     }
 
-    fun generateRequestData(gamesDescriptions:List<GameInfo?>):List<RequestData>{
+    fun generateRequestData(gamesDescriptions:List<GameInfo?>, modelType: String):List<RequestData> {
         return gamesDescriptions.mapNotNull { if(it?.description == null) null else RequestData(
-            model = model,
+            model = modelType,
             prompt = it.description
         )
         }
