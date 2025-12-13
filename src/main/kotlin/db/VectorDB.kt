@@ -1,7 +1,13 @@
 package org.example.db
 
 import com.pgvector.PGvector
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
+import org.example.Utils
 import org.example.data.InsertData
+import org.example.data.LLM
+import org.example.data.NeighborData
 import java.sql.DriverManager
 
 object VectorDB {
@@ -11,33 +17,33 @@ object VectorDB {
         System.getenv("DB_PASSWORD")
     )
 
-
-    fun createTableEmbedding(){
-        val setupStatement = conn.createStatement()
-        setupStatement.executeUpdate("CREATE EXTENSION IF NOT EXISTS VECTOR")
-        setupStatement.executeUpdate("DROP TABLE IF EXISTS MXGAMES")
-        setupStatement.executeUpdate("DROP TABLE IF EXISTS MXGAMESSNOWFLAKE")
-        setupStatement.executeUpdate("DROP TABLE IF EXISTS MXGAMESMXBAI")
-
-        PGvector.addVectorType(conn)
-
-        val createStmt = conn.createStatement()
-        createStmt.executeUpdate("CREATE TABLE MXGAMES (id bigserial PRIMARY KEY, description TEXT NOT NULL,embedding vector(768))")
-        createStmt.executeUpdate("CREATE TABLE MXGAMESSNOWFLAKE (id bigserial PRIMARY KEY, description TEXT NOT NULL,embedding vector(1024))")
-        createStmt.executeUpdate("CREATE TABLE MXGAMESMXBAI (id bigserial PRIMARY KEY, description TEXT NOT NULL,embedding vector(1024))")
-    }
-
-    fun preloadData(insertData:List<InsertData>, tableName: String){
+    suspend fun preloadData(
+        insertData:List<InsertData>,
+        model: String,
+        onProgress:(Int, Int) -> Unit)
+    = withContext(Dispatchers.IO) {
+        val batchSize = 1000
+        val total  = insertData.size
+        val table = Utils.tableForModel(model)
         conn.autoCommit = false
         try {
-            val statement = conn.prepareStatement("INSERT INTO $tableName (description,embedding) VALUES (?,?)")
+            val statement = conn.prepareStatement("INSERT INTO $table (" +
+                    "description, name, metacritic, released, playtime, embedding) VALUES (?,?,?,?,?,?)")
                 .use{ stmt ->
-                    insertData.forEach { data ->
-                        stmt.setString(1, data.description)
-                        stmt.setObject(2, PGvector(data.embedding))
-                        stmt.addBatch()
+                    insertData.chunked(batchSize).forEachIndexed { chunkIndex, chunk ->
+                        chunk.forEach {  data ->
+                            stmt.setString(1, data.description)
+                            stmt.setString(2, data.name)
+                            stmt.setInt(3,data.metacritic)
+                            stmt.setString(4,data.released)
+                            stmt.setInt(5, data.playtime)
+                            stmt.setObject(6, PGvector(data.embedding))
+                            stmt.addBatch()
+                        }
+                        stmt.executeBatch()
+                        onProgress((chunkIndex + 1) * batchSize, total)
+                        yield()
                     }
-                    stmt.executeBatch()
                 }
             conn.commit()
         }
@@ -50,52 +56,49 @@ object VectorDB {
         }
     }
 
-    fun getNeighbors(emb:List<Float>, distanceMetric: DistanceMetric, model_type: String): MutableList<String>?{
-        var tableName = ""
-        when {
-            model_type == "nomic-embed-text:v1.5" -> {
-                tableName = "MXGAMES"
-            }
-            model_type == "snowflake-arctic-embed2" -> {
-                tableName = "MXGAMESSNOWFLAKE"
-            }
-            model_type == "mxbai-embed-large" -> {
-                tableName = "MXGAMESMXBAI"
-            }
-        }
-        try {
+    suspend fun getNeighbors(emb:List<Float>, distanceMetric: DistanceMetric, model: String): MutableList<NeighborData>? = withContext(Dispatchers.IO) {
             var query:String = ""
-            when {
-                distanceMetric == DistanceMetric.L2 -> {
-                    query = "SELECT * FROM $tableName ORDER BY embedding <-> ? LIMIT 5"
+            val tableName = Utils.tableForModel(model)
+            if (tableName != null) {
+                when {
+                    distanceMetric == DistanceMetric.L2 -> {
+                        query = "SELECT * FROM $tableName ORDER BY embedding <-> ? LIMIT 5"
+                    }
+                    distanceMetric == DistanceMetric.COSINE -> {
+                        query = "SELECT * FROM $tableName ORDER BY embedding <=> ? LIMIT 5"
+                    }
+                    distanceMetric == DistanceMetric.INNER_PRODUCT -> {
+                        query = "SELECT * FROM $tableName ORDER BY embedding <#> ? LIMIT 5"
+                    }
                 }
-                distanceMetric == DistanceMetric.COSINE -> {
-                    query = "SELECT * FROM $tableName ORDER BY embedding <=> ? LIMIT 5"
+                try {
+                    val stmt = conn.prepareStatement(query)
+                        .use {
+                                statement ->
+                            statement.setObject(1, PGvector(emb))
+                            val rs = statement.executeQuery()
+                            val neighborsInfo = mutableListOf<NeighborData>()
+                            while (rs.next()){
+                                val data = NeighborData(
+                                    name = rs.getString("name"),
+                                    description = rs.getString("description"),
+                                    playtime = rs.getInt("playtime"),
+                                    metacritic = rs.getInt("metacritic"),
+                                    released = rs.getString("released")
+                                )
+                                neighborsInfo.add(data)
+                            }
+                            neighborsInfo
+                        }
+                    return@withContext stmt
                 }
-                distanceMetric == DistanceMetric.INNER_PRODUCT -> {
-                    query = "SELECT * FROM $tableName ORDER BY embedding <#> ? LIMIT 5"
+                catch (e: Exception){
+                    println("Error: ${e.message}")
+                    return@withContext null
                 }
             }
-            val stmt = conn.prepareStatement(query)
-                .use {
-                        statement ->
-                    statement.setObject(1, PGvector(emb))
-                    val rs = statement.executeQuery()
-                    val neighborsDescription = mutableListOf<String>()
-                    while (rs.next()){
-                        neighborsDescription.add(rs.getString("description"))
-                    }
-                    neighborsDescription
-                }
-            return stmt
-        }
-        catch (e: Exception){
-         println("Error: ${e.message}")
-            return null
-        }
-
+        return@withContext  null
     }
-
 }
 
 enum class DistanceMetric {

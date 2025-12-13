@@ -5,14 +5,16 @@ import com.sun.net.httpserver.HttpHandler
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.example.data.HTTPResuestData
+import org.example.data.RequestData
 import org.example.data.ResponseData
+import org.example.data.ResultEmbedding
 import org.example.db.DistanceMetric
-import org.example.processText
+import org.example.db.VectorDB
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
 
-class HttpRestHandler(val nomicEmbeddingManager: NomicEmbeddingManager) : HttpHandler {
+class HttpRestHandler(val embeddingManager: EmbeddingManager) : HttpHandler {
     @Throws(IOException::class)
     override fun handle(t: HttpExchange) {
         // Добавляем CORS заголовки
@@ -61,7 +63,7 @@ class HttpRestHandler(val nomicEmbeddingManager: NomicEmbeddingManager) : HttpHa
             }
 
             runBlocking {
-                response = processText(requestObj.desc, currentTypeMetric, currentModel, nomicEmbeddingManager)
+                response = processText(requestObj.desc, currentTypeMetric, currentModel, embeddingManager)
             }
             //response = "OK"
             val responseData = ResponseData(response)
@@ -79,5 +81,30 @@ class HttpRestHandler(val nomicEmbeddingManager: NomicEmbeddingManager) : HttpHa
             t.sendResponseHeaders(405, -1) // Method Not Allowed
             t.close()
         }
+    }
+
+    private suspend fun processText(text: String?, metricType: DistanceMetric?, modelType: String, embeddingManager: EmbeddingManager) : MutableList<String> {
+        // которое будет сравниваться на похожесть с уже сохраненными
+        //println(text)
+        var result: MutableList<String> = mutableListOf<String>()
+        text?.let {
+            val emb = embeddingManager!!.getEmbeddingOneGame( // получаем embedding пользовательского описания
+                RequestData(
+                    model = modelType,
+                    prompt = text
+                )
+            )
+            println(emb?.body())
+            if (emb?.body() != null ){
+                val resEmb = Json.decodeFromString<ResultEmbedding>(emb.body()) // десериализуем
+                val res =  VectorDB.getNeighbors(resEmb.embedding, metricType!!, modelType) // получаем пять ближайших соседей
+                // DistanceMetric - функции расстояния
+                res?.forEachIndexed { index, item ->
+                    println("$index: $item")
+                    //result.add(item.orEmpty().replace("\"", "").replace("'", ""))
+                }
+            }
+        }
+        return result
     }
 }

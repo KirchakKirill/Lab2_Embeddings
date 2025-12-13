@@ -14,5 +14,11 @@ data class GameInfo(
     @SerialName("name_original")
     val nameOriginal:String?=null,
     @SerialName("description")
-    val description:String?=null
+    val description:String?=null,
+    @SerialName("metacritic")
+    val metacritic:Int?=null,
+    @SerialName("released")
+    val released:String?=null,
+    @SerialName("playtime")
+    val playtime:Int?=null,
 )

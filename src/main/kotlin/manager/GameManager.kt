@@ -11,14 +11,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import org.example.data.GameInfo
-import org.example.data.RequestData
 
 class GameManager
 {
-    companion object {
-        const val model = "nomic-embed-text:v1.5"
-    }
-
     private val key = System.getenv("KEY")
 
     private val httpClient: OkHttpClient
@@ -53,7 +48,7 @@ class GameManager
 
                 }
                 val decoded = json.decodeFromString<GameInfo>(responseData)
-                println(coroutineContext)
+                println("GameManager[withContext]: $coroutineContext")
                 return@withContext decoded
             }
             return@withContext null
@@ -78,18 +73,10 @@ class GameManager
         val Dresult =
             range.map {
                 async {
+                    println("GameManager: $coroutineContext")
                     run(url + "$it")
                 }
             }.awaitAll().filterNotNull()
         return@coroutineScope Dresult
     }
-
-    fun generateRequestData(gamesDescriptions:List<GameInfo?>, modelType: String):List<RequestData> {
-        return gamesDescriptions.mapNotNull { if(it?.description == null) null else RequestData(
-            model = modelType,
-            prompt = it.description
-        )
-        }
-    }
-
 }
