@@ -6,7 +6,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import org.example.Utils
 import org.example.data.InsertData
-import org.example.data.LLM
 import org.example.data.NeighborData
 import java.sql.DriverManager
 

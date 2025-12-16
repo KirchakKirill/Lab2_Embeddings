@@ -3,87 +3,124 @@ package org.example
 import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
-import org.example.data.InsertData
-import org.example.data.LLM
-import org.example.data.RequestData
-import org.example.data.ResultEmbedding
-import org.example.db.DistanceMetric
-import org.example.db.VectorDB
-import org.example.manager.DatabaseMigrator
-import org.example.manager.GameManager
-import org.example.manager.HttpRestHandler
-import org.example.manager.EmbeddingManager
+import org.core.db.api.DatabaseProvider
+import org.core.dto.DistanceMetric
+import org.core.dto.GameInfo
+import org.core.dto.InsertData
+import org.core.dto.LLM
+import org.core.dto.RequestData
+import org.core.dto.ResultEmbedding
+import org.core.embedding.api.EmbeddingManager
+import org.core.embedding.impl.UserEmbeddingRequest
+import org.core.mapper.Mapper
+import org.core.network.api.ClientProvider
 import java.net.InetSocketAddress
+import org.core.network.api.HandlerProcessor
+import org.core.network.factory.HttpHandlerFactory
+import org.koin.core.context.startKoin
+import org.koin.java.KoinJavaComponent.get
 
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
 
-//var nomicEmbeddingManager: NomicEmbeddingManager? = null
 
-fun main(): kotlin.Unit = runBlocking {
-    DatabaseMigrator.migrate()
-    if (!DatabaseMigrator.isMigrated) {
-        return@runBlocking
+lateinit var embeddingManager: EmbeddingManager
+lateinit var clientProvider: ClientProvider
+lateinit var databaseProvider: DatabaseProvider
+
+const val embeddingUrl =  "http://localhost:11434/api/embeddings"
+
+val processor = object : HandlerProcessor {
+    override suspend fun process(
+        text: String?,
+        metric: DistanceMetric?,
+        model: String
+    ): List<String> {
+        val result: MutableList<String> = mutableListOf()
+        text?.let {
+            val emb = embeddingManager.getOneEmbedding(embeddingUrl,
+                UserEmbeddingRequest(
+                    RequestData(
+                        model = model,
+                        prompt = text
+                    )
+                )
+            )
+
+            if (emb?.body() != null ){
+                val resEmb = Json.decodeFromString<ResultEmbedding>(emb.body()) // десериализуем
+                val res =  databaseProvider.database.databaseClient.databaseQuery.getNeighbors(resEmb.embedding, metric!!, model) // получаем пять ближайших соседей
+                // DistanceMetric - функции расстояния
+                res?.forEachIndexed { index, item ->
+                    println("$index: name: ${item.name}\n" +
+                            "playtime: ${item.playtime}\n" +
+                            "released: ${item.released}\n" +
+                            "metacritic: ${item.metacritic}\n" +
+                            "description: ${item.description}\n")
+                    //result.add(item.orEmpty().replace("\"", "").replace("'", ""))
+                }
+            }
+        }
+        return result
     }
 
-    val manager = GameManager()
-    val games = manager.getNDescriptions("https://api.rawg.io/api/games/",100)
+}
 
-    val info = Utils.mapperGameData(games)
-    val info_snowflake = Utils.mapperGameData(games)
-    val info_mxbai = Utils.mapperGameData(games)
+var isMigrationsDone = false
 
+fun main(): Unit = runBlocking {
 
-    val embeddingManager = EmbeddingManager("http://localhost:11434/api/embeddings")
+    startKoin {
+        modules(appModule)
+        printLogger()
+    }
 
-    val embeddings = embeddingManager.getNEmbedding(info, LLM.NOMIC.key)
+    databaseProvider = get(DatabaseProvider::class.java)
+    embeddingManager = get(EmbeddingManager::class.java)
+    clientProvider = get(ClientProvider::class.java)
+
+    //1
+    isMigrationsDone = databaseProvider.database.databaseMigrator.migrate()
+    if  (!isMigrationsDone) {
+        return@runBlocking
+    }
+    //2
+    val games:List<GameInfo> =  clientProvider.client.dataSource.getNRequest("https://api.rawg.io/api/games/",100)
+
+    //3
+    val info = Mapper.mapperGameData(games)
+    val info_snowflake = Mapper.mapperGameData(games)
+    val info_mxbai = Mapper.mapperGameData(games)
+
+    //4
+    val embeddings = embeddingManager.getNEmbedding(embeddingUrl, info, LLM.NOMIC.key)
     //val embeddings_snowflake = embeddingManager.getNEmbedding(info_snowflake, LLM.SNOWFLAKE.key)
     //val embeddings_mxbai = embeddingManager.getNEmbedding(info_mxbai, LLM.MXBAI.key)
     val embeddings_snowflake = listOf<InsertData>()
     val embeddings_mxbai = listOf<InsertData>()
 
-    VectorDB.preloadData(listOf(embeddings, embeddings_snowflake, embeddings_mxbai).flatten(), LLM.NOMIC.key
+    //5
+    val initializer = databaseProvider.database.databaseClient.dbInitializer
+    initializer.preloadData(listOf(embeddings, embeddings_snowflake, embeddings_mxbai).flatten(), LLM.NOMIC.key
     ) { cur, total -> println("Обработано $cur записей из $total...") }
     val  text = Utils.getDescriptionFromFile("1.txt")
 
-    processText(text, DistanceMetric.INNER_PRODUCT, LLM.NOMIC.key, embeddingManager)
-    //initHttpServer(embeddingManager)
+    processor.process(text, DistanceMetric.INNER_PRODUCT, LLM.NOMIC.key)
+    //initHttpServer()
 }
 
-fun initHttpServer(embeddingManager: EmbeddingManager) {
+fun initHttpServer() {
     println("Init http server ...")
     val server = HttpServer.create(InetSocketAddress(8088), 0)
-    server.createContext("/games", HttpRestHandler(embeddingManager))
+    server.createContext("/games",
+        HttpHandlerFactory.Builder()
+        .withProcessor(processor)
+        .build())
     server.executor = null // creates a default executor
     server.start()
     println("Init http server ... done")
 }
 
-private suspend fun processText(text: String?, metricType: DistanceMetric?, modelType: String, embeddingManager: EmbeddingManager) : MutableList<String> {
-    val result: MutableList<String> = mutableListOf<String>()
-    text?.let {
-        val emb = embeddingManager.getEmbeddingOneGame( // получаем embedding пользовательского описания
-            RequestData(
-                model = modelType,
-                prompt = text
-            )
-        )
-        println(emb?.body())
-        if (emb?.body() != null ){
-            val resEmb = Json.decodeFromString<ResultEmbedding>(emb.body()) // десериализуем
-            val res =  VectorDB.getNeighbors(resEmb.embedding, metricType!!, modelType) // получаем пять ближайших соседей
-            // DistanceMetric - функции расстояния
-            res?.forEachIndexed { index, item ->
-                println("$index: name: ${item.name}\n" +
-                        "playtime: ${item.playtime}\n" +
-                        "released: ${item.released}\n" +
-                        "metacritic: ${item.metacritic}\n" +
-                        "description: ${item.description}\n")
-                //result.add(item.orEmpty().replace("\"", "").replace("'", ""))
-            }
-        }
-    }
-    return result
-}
+
 
 

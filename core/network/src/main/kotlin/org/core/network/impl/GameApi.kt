@@ -1,4 +1,4 @@
-package org.example.manager
+package org.core.network.impl
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -7,42 +7,21 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import org.example.data.GameInfo
+import org.core.network.api.DataSource
+import org.core.dto.GameInfo
+import org.core.network.api.NetworkClient
 
-class GameManager
-{
-    private val key = System.getenv("KEY")
+internal class GameApi(private val networkClient: NetworkClient): DataSource {
 
-    private val httpClient: OkHttpClient
-
-    init {
-        this.httpClient = OkHttpClient.Builder().addInterceptor {
-                chain ->
-            val originalRequest = chain.request()
-            val originalUrl = originalRequest.url
-
-            val newUrl = originalUrl.newBuilder()
-                .addQueryParameter("key", key)
-                .build()
-
-            val newRequest = originalRequest.newBuilder()
-                .url(newUrl)
-                .build()
-
-            chain.proceed(newRequest)
-        }.build()
-    }
-
-    suspend fun run(url:String): GameInfo?  = withContext(Dispatchers.IO) {
+    override suspend fun getOneRequest(url:String): GameInfo?  = withContext(Dispatchers.IO) {
 
         fun doRequest(): Response {
             val request  = Request.Builder()
                 .url(url)
                 .build()
-            val response = httpClient.newCall(request).execute()
+            val response =  networkClient.execute(request)
             return response
         }
 
@@ -69,15 +48,15 @@ class GameManager
         }
     }
 
-    suspend fun getNDescriptions(url: String, n:Int):List<GameInfo> = coroutineScope {
+   override suspend fun getNRequest(url: String, n:Int):List<GameInfo> = coroutineScope{
         val range = IntRange(1, n)
-        val Dresult =
+        val dResult =
             range.map {
                 async {
                     println("GameManager: $coroutineContext")
-                    run(url + "$it")
+                    getOneRequest(url + "$it")
                 }
             }.awaitAll().filterNotNull()
-        return@coroutineScope Dresult
+        return@coroutineScope dResult
     }
 }

@@ -21,6 +21,7 @@ class EmbeddingManager(private val path:String)
 {
     private var url: URI
     private val httpClient: HttpClient
+    private val dispatcher = Dispatchers.IO.limitedParallelism(10)
 
     init {
         this.url = URI.create(this.path)
@@ -35,7 +36,7 @@ class EmbeddingManager(private val path:String)
         return doRequest(requestData,null,null)
     }
 
-    private suspend fun doRequest(requestData: RequestData?=null, gameData: GameData?=null, model: String?=null): HttpResponse<String>? {
+    private suspend fun doRequest(requestData: RequestData?, gameData: GameData?, model: String?): HttpResponse<String>? {
         return withContext(Dispatchers.IO) {
             try {
                 val data = if (gameData != null && model != null) gameData.mapperToRequestData(model) else requestData
@@ -77,7 +78,7 @@ class EmbeddingManager(private val path:String)
         }
 
         val embeddings = descriptions.map {
-            async(Dispatchers.IO.limitedParallelism(10)) {
+            async(dispatcher) {
                 val embeddingForOne = getEmbeddingOneGame(it, model)
                 println("EmbeddingManager: $coroutineContext")
                 mapperToInsertData(embeddingForOne, it)
