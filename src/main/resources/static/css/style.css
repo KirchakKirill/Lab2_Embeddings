@@ -14,7 +14,6 @@ body {
 #chatHistory {
     width: 100%;
     max-width: 750px;
-    overflow-y: auto;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -24,8 +23,7 @@ body {
 }
 
 .user-message {
-    box-shadow: 0 10px 10px rgba(0, 0, 0, 0.1);
-    box-shadow: 0 1px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 10px rgba(0, 0, 0, 0.3);
     max-width: 500px;
     padding: 10px;
     background-color: #ffffff;
@@ -35,8 +33,7 @@ body {
 }
 
 .llm-message {
-    box-shadow: 0 10px 10px rgba(0, 0, 0, 0.1);
-    box-shadow: 0 1px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 10px rgba(0, 0, 0, 0.3);
     max-width: 500px;
     padding: 10px;
     background-color: #ffffff;
@@ -45,15 +42,23 @@ body {
     margin-right: auto;
 }
 
+.llm-message p {
+    margin-top: 0;
+}
+
+.llm-message p:last-of-type{
+    margin-bottom: 0;
+}
+
 .user-message-text {
 }
 
 .container {
-    height: 120px;
+    height: 130px;
     background: white;
     padding: 0px 5px;
     border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
     text-align: center;
     max-width: 750px;
     width: 100%;
@@ -91,7 +96,7 @@ textarea[type="text"] {
 button {
     background-color: #ebffe6;
     border: 1px solid #dcffd1;
-    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
     background-position: center;
     background-size: 70%;
     background-repeat: no-repeat;
@@ -128,7 +133,7 @@ select,
 
 select {
     border: 1px solid #dcffd1;
-    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
 
     background: #ebffe6;
     padding: 3px 10px;
@@ -172,7 +177,7 @@ option:focus {
 ::picker(select) {
     border: none;
     border-radius: 12px;
-    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
 
 }
 
@@ -203,4 +208,17 @@ option:focus {
     color: #721c24;
     background-color: #f8d7da;
     border: 1px solid #f5c6cb;
+}
+
+.clarification{
+    color: rgba(0, 0, 0, 0.5);
+    font-size: 10px;
+    margin: 0;
+    padding: 0;
+    margin-top:3px;
+}
+
+.selectors{
+    display: flex;
+    gap: 12px;
 }

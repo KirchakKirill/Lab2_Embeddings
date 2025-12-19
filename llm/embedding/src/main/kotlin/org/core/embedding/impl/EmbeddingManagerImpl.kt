@@ -50,7 +50,6 @@ class EmbeddingManagerImpl: EmbeddingManager {
                 )
             }
         }
-
         val embeddings = descriptions.map {
             async(dispatcher) {
                 val embeddingForOne = getOneEmbedding(url, GameDataEmbeddingRequest(it, model))

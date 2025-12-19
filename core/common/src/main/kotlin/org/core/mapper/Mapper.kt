@@ -2,6 +2,7 @@ package org.core.mapper
 
 import org.core.dto.GameData
 import org.core.dto.GameInfo
+import org.core.utils.Utils.parseDescription
 
 object Mapper {
 
@@ -17,7 +18,7 @@ object Mapper {
                 ).all { it != null } }?.let { g->
                     GameData(
                         name = g.name!!,
-                        description = g.description!!,
+                        description = parseDescription(g.description!!),
                         playtime = g.playtime!!,
                         released = g.released!!,
                         metacritic = g.metacritic!!

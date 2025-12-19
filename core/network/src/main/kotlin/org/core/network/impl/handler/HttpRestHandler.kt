@@ -6,6 +6,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.core.dto.DistanceMetric
 import org.core.dto.HTTPResuestData
+import org.core.dto.LLM
 import org.core.dto.ResponseData
 import org.core.network.api.HandlerProcessor
 import java.io.BufferedReader
@@ -48,21 +49,28 @@ internal class HttpRestHandler(private val processor: HandlerProcessor) : HttpHa
             var response = emptyList<String>()
 
             var currentTypeMetric: DistanceMetric? = null
+            var currentTypeLLM: LLM? = null
+            var currentModel= "nomic-embed-text:v1.5"
+
             when (requestObj.metric) {
                 "L2" -> currentTypeMetric = DistanceMetric.L2
                 "COSINE" -> currentTypeMetric = DistanceMetric.COSINE
                 "INNER_PRODUCT" -> currentTypeMetric = DistanceMetric.INNER_PRODUCT
             }
 
-            var currentModel= "nomic-embed-text:v1.5"
             when (requestObj.model) {
                 "nomic-model" -> currentModel = "nomic-embed-text:v1.5"
                 "snowflake-model" -> currentModel = "snowflake-arctic-embed2"
                 "mxbai-model" -> currentModel = "mxbai-embed-large"
             }
 
+            when (requestObj.llm) {
+                "qwen3-vl" -> currentTypeLLM = LLM.QWEN3
+                "nemotron-3-nano" -> currentTypeLLM = LLM.NEMOTRON3
+            }
+
             runBlocking {
-                response =  processor.process(requestObj.desc, currentTypeMetric, currentModel)
+                response =  processor.process(requestObj.desc, currentTypeMetric, currentModel, currentTypeLLM)
             }
             //response = "OK"
             val responseData = ResponseData(response)

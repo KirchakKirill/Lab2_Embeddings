@@ -37,7 +37,18 @@ object Utils {
                 LLM.MXBAI.tableName
             }
 
+            LLM.QWEN3.key -> {
+                LLM.QWEN3.tableName
+            }
+            LLM.NEMOTRON3.key -> {
+                LLM.QWEN3.tableName
+            }
+
             else -> null
         }
+    }
+
+    fun parseDescription(description: String): String {
+        return description.replace(Regex("<[^>]*>"), "")
     }
 }

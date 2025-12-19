@@ -32,4 +32,4 @@ metacritic INTEGER NOT NULL,
 released VARCHAR(50) NOT NULL,
 playtime INTEGER NOT NULL,
 embedding vector(1024)
-)
+);

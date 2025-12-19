@@ -18,28 +18,47 @@
 
         <div class="utils">
             <div class="selectors">
-                <select id="model-select">
-                    <option value="nomic-model" selected>
-                        <span class="option-label">Nomic</span>
-                    </option>
-                    <option value="snowflake-model">
-                        <span class="option-label">SnowFlake</span>
-                    </option>
-                    <option value="mxbai-model">
-                        <span class="option-label">MXBAI</span>
-                    </option>
-                </select>
-                <select id="distanceMetric-select">
-                    <option value="L2">
-                        <span class="option-label" selected>L2</span>
-                    </option>
-                    <option value="COSINE">
-                        <span class="option-label">Cosine</span>
-                    </option>
-                    <option value="INNER_PRODUCT">
-                        <span class="option-label">Inner product</span>
-                    </option>
-                </select>
+                <div>
+                    <select id="model-select">
+                        <option value="nomic-model" selected>
+                            <span class="option-label">Nomic</span>
+                        </option>
+                        <option value="snowflake-model">
+                            <span class="option-label">SnowFlake</span>
+                        </option>
+                       <!-- <option value="mxbai-model">
+                            <span class="option-label">MXBAI</span>-->
+                        </option>
+                    </select>
+                    <p class="clarification">Embedding model</p>
+                </div>
+
+                <div>
+                    <select id="distanceMetric-select">
+                        <option value="L2">
+                            <span class="option-label" selected>L2</span>
+                        </option>
+                        <option value="COSINE">
+                            <span class="option-label">Cosine</span>
+                        </option>
+                        <option value="INNER_PRODUCT">
+                            <span class="option-label">Inner product</span>
+                        </option>
+                    </select>
+                    <p class="clarification">Metric</p>
+                </div>
+
+                <div>
+                    <select id="LLM-type-select">
+                        <option value="qwen3-vl">
+                            <span class="option-label" selected>QWEN3-vl</span>
+                        </option>
+                        <option value="nemotron-3-nano">
+                            <span class="option-label" selected>Nemotron-3-nano</span>
+                        </option>
+                    </select>
+                    <p class="clarification">LLM</p>
+                </div>
             </div>
             <div >
                 <button id="clearData" onClick="clearHistory()"></button>
@@ -57,6 +76,7 @@
     var chatHistory = document.getElementById('chatHistory');
     var modelSelector = document.getElementById('model-select');
     var metricSelector = document.getElementById('distanceMetric-select');
+    var llmSelector = document.getElementById('LLM-type-select');
 
     function clearHistory() {
         while (chatHistory.firstChild) {
@@ -91,6 +111,7 @@
         const gameDesc = document.getElementById("gameDesc").value.trim();
         const changeMetric = metricSelector.value;
         const changeModel = modelSelector.value;
+        const changeLLM = llmSelector.value;
 
         descFiled.value = '';
         // Сброс и индикация загрузки
@@ -103,7 +124,7 @@
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ desc: gameDesc, metric: changeMetric, model: changeModel }) // Если хотим отправлять JSON
+            body: JSON.stringify({ desc: gameDesc, metric: changeMetric, model: changeModel, llm: changeLLM }) // Если хотим отправлять JSON
             //body: gameDesc // Если хотим отправлять текст
         };
 

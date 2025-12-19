@@ -6,6 +6,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import org.core.dto.MessageData
+import org.core.dto.MessageHistoryData
 import org.core.extensions.toUri
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -37,4 +39,26 @@ class NetworkClientAdapter(
         }
     }
 
+    override suspend fun generateChatMessage(
+        url: String,
+        source: MutableList<MessageData>,
+        model: String
+    ): HttpResponse<String>? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val body = Json.Default.encodeToString(MessageHistoryData(model, source, false))
+                val request: HttpRequest = HttpRequest.newBuilder()
+                    .uri(url.toUri())
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .build()
+                val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+                return@withContext response
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                println("Error during request chat message")
+                null
+            }
+        }
+    }
 }

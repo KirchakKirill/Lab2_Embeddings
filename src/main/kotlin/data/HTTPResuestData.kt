@@ -10,5 +10,7 @@ data class HTTPResuestData(
     @SerialName("metric")
     val metric:String,
     @SerialName("model")
-    val model:String
+    val model:String,
+    @SerialName("llm")
+    val llm:String
 )
