@@ -1,0 +1,34 @@
+{
+  "type": "function",
+  "function": {
+    "name": "searchDatabase",
+    "description": "Based on the given game description, it searches for similar games in the database",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "url",
+        "model",
+        "metric",
+        "prompt"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "The URL that will be used to retrieve the vector representation (embedding) of the data."
+        },
+        "model": {
+          "type": "string",
+          "description": "Model for creating vector representations (embeddings) of data"
+        },
+        "metric": {
+          "type": "string",
+          "description": "A metric that determines the closeness of vector representations (embeddings)"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Data to be converted into vector representation (embedding)"
+        }
+      }
+    }
+  }
+}

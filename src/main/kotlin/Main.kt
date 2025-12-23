@@ -15,6 +15,8 @@ import org.core.network.api.HandlerProcessor
 import org.core.network.factory.HttpHandlerFactory
 import org.koin.core.context.startKoin
 import org.koin.java.KoinJavaComponent.get
+import java.io.File
+import java.net.http.HttpResponse
 
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
@@ -27,8 +29,10 @@ lateinit var chatBotManager: ChatBotManager
 
 const val embeddingUrl =  "http://localhost:11434/api/embeddings"
 const val generateChatMessageUrl =  "http://localhost:11434/api/chat"
+const val searchInternetUrl =  "https://ollama.com/api/web_search"
 
 val chatHistory: MutableList<MessageData> = mutableListOf()
+var toolsLLM: MutableList<ToolData> = mutableListOf()
 
 val processor = object : HandlerProcessor {
 
@@ -40,76 +44,116 @@ val processor = object : HandlerProcessor {
     ): List<String> {
         val result: MutableList<String> = mutableListOf()
         text?.let {
-            chatHistory.add(MessageData("user", text))
-            var generateLLMAnswer = chatBotManager.generateChatMessage(generateChatMessageUrl, chatHistory, llm!!.key)
+            chatHistory.add(MessageData("user", text + " &&&EMBMODE<$model> &&&METRICKMODE:<${metric!!.name}>"))
+            Utils.addRecordToFile("chatHistoryLogs.txt", "<user>: $text" + "\n&&&EMBMODE<$model> &&&METRICKMODE:<${metric!!.name}> \n\n")
+
             var llmAnswer: ChatBotAnswer? = null
-            var summaryDescriptionForLLM: String = ""
 
-            if (generateLLMAnswer?.body() != null) {
-                try {
-                    llmAnswer = Json.decodeFromString<ChatBotAnswer>(generateLLMAnswer.body()) // десериализуем
-                    chatHistory.add(MessageData(llmAnswer.message.role, llmAnswer.message.content))
-                }
-                catch (e: Exception) {
-                    println(e.toString())
-                    return result
-                }
-            }
-
-            if (!llmAnswer!!.message.content.contains("&&&SUMMARYDESC")) {
-                result.add(llmAnswer!!.message.content)
+            llmAnswer = llmRequest(result, llm!!)
+            if (llmAnswer==null) {
                 return result
             }
 
-            val signature = llmAnswer!!.message.content.indexOf("&&&SUMMARYDESC", 0)
-            val desriptionByLLM = llmAnswer!!.message.content.substring("&&&SUMMARYDESC".length + signature, llmAnswer!!.message.content.length)
+            if (llmAnswer!!.message.tool_calls.isEmpty()) {
+                return result
+            }
 
-            val emb = embeddingManager.getOneEmbedding(embeddingUrl,
-                UserEmbeddingRequest(
-                    RequestData(
-                        model = model,
-                        prompt = desriptionByLLM
-                    )
-                )
-            )
+            var webSearchResult: HttpResponse<String>? = null
+            var databaseSearchResult: String? = null
 
-            if (emb?.body() != null ){
-                val resEmb = Json.decodeFromString<ResultEmbedding>(emb.body()) // десериализуем
-                val res =  databaseProvider.database.databaseClient.databaseQuery.getNeighbors(resEmb.embedding, metric!!, model) // получаем пять ближайших соседей
-                // DistanceMetric - функции расстояния
-                res?.forEachIndexed { index, item ->
-                    println("$index: name: ${item.name}\n" +
-                            "playtime: ${item.playtime}\n" +
-                            "released: ${item.released}\n" +
-                            "metacritic: ${item.metacritic}\n" +
-                            "description: ${item.description}\n")
-                    summaryDescriptionForLLM +=
-                        "\n---------------game-----------------\n" +
-                        "Name: " + item.name +
-                        "Playtime: " + item.playtime.toString() +
-                        "Released: " + item.released +
-                        "Metacritic: " + item.metacritic.toString()+
-                        "Description: " + item.description
-                    //result.add(item.orEmpty().replace("\"", "").replace("'", ""))
+            val toolsHistory: MutableList<MessageData> = mutableListOf()
+
+            llmAnswer.message.tool_calls.map { tool ->
+                when (tool.function.name) {
+                    "searchInternet" -> webSearchResult = chatBotManager.searchInternet(tool.function.arguments.url, tool.function.arguments.query!!, tool.function.arguments.max_results!!)
+                    "searchDatabase" -> databaseSearchResult = databaseSearch(tool.function.arguments.url, tool.function.arguments.model!!, tool.function.arguments.metric!!, tool.function.arguments.prompt!!)
+                    else -> print("No tool specified")
                 }
             }
 
-            generateLLMAnswer = chatBotManager.generateChatMessage(generateChatMessageUrl, mutableListOf(MessageData("user","Посоветуй что-то на основе приведнных далее игр. Пиши на русском языке. Выдай ответ с правильными и красивыми html тегами (цвета - очень нежный зеленый оттенок, для родительского div НЕ задавай фона вообще, цвет шрифтов должен быть темным), например, название игр, релиз и так далее выдели жирным цветом. Игры: $summaryDescriptionForLLM")), llm.key)
-            if (generateLLMAnswer?.body() != null) {
-                try {
-                    llmAnswer = Json.decodeFromString<ChatBotAnswer>(generateLLMAnswer.body()) // десериализуем
-                    //chatHistory.add(MessageData(llmAnswer.message.role, llmAnswer.message.content))
-                    result.add(llmAnswer.message.content)
-                }
-                catch (e: Exception) {
-                    println(e.toString())
-                    return result
-                }
-            }
+            toolsHistory.add(MessageData("tool", tool_name = "searchInternet", content = webSearchResult!!.body().takeIf { !it.isNullOrEmpty() } ?: "Не удалось получить данные из интернета"))
+            toolsHistory.add(MessageData("tool", tool_name = "searchDatabase", content = databaseSearchResult.takeIf { !it.isNullOrEmpty() } ?: "Не удалось получить данные из базы данных"))
+            chatHistory += toolsHistory
+            Utils.addRecordToFile("chatHistoryLogs.txt", "<tool>: ${webSearchResult!!.body()} \n")
+            Utils.addRecordToFile("chatHistoryLogs.txt","<tool>: ${databaseSearchResult.takeIf { !it.isNullOrEmpty() } ?: "Не удалось получить данные из базы данных"} \n")
+
+            llmAnswer = llmRequest(result, llm)
+            if (llmAnswer==null) { return result }
         }
         return result
     }
 
+    suspend fun databaseSearch(embeddingUrl: String, model: String, metric: String, prompt: String): String {
+        var summaryDescriptionForLLM: String = ""
+        var distanceMetric: DistanceMetric? = null
+
+        when (metric) {
+            "L2" -> distanceMetric= DistanceMetric.L2
+            "COSINE" -> distanceMetric= DistanceMetric.COSINE
+            "INNER_PRODUCT" -> distanceMetric= DistanceMetric.INNER_PRODUCT
+        }
+
+        val emb = embeddingManager.getOneEmbedding(
+            embeddingUrl,
+            UserEmbeddingRequest(
+                RequestData(
+                    model = model,
+                    prompt = prompt
+                )
+            )
+        )
+
+        if (emb?.body() != null) {
+            val resEmb = Json.decodeFromString<ResultEmbedding>(emb.body()) // десериализуем
+            val res = databaseProvider.database.databaseClient.databaseQuery.getNeighbors(
+                resEmb.embedding,
+                distanceMetric!!,
+                model
+            ) // получаем пять ближайших соседей
+            // DistanceMetric - функции расстояния
+            res?.forEachIndexed { index, item ->
+                println(
+                    "$index: name: ${item.name}\n" +
+                            "playtime: ${item.playtime}\n" +
+                            "released: ${item.released}\n" +
+                            "metacritic: ${item.metacritic}\n" +
+                            "description: ${item.description}\n"
+                )
+                summaryDescriptionForLLM +=
+                    "\n---------------game-----------------\n" +
+                            "Name: " + item.name +
+                            "Playtime: " + item.playtime.toString() +
+                            "Released: " + item.released +
+                            "Metacritic: " + item.metacritic.toString() +
+                            "Description: " + item.description
+                //result.add(item.orEmpty().replace("\"", "").replace("'", ""))
+            }
+        }
+
+        return summaryDescriptionForLLM
+    }
+
+    suspend fun llmRequest(result: MutableList<String>, llm: LLM): ChatBotAnswer? {
+        var generateLLMAnswer = chatBotManager.generateChatMessage(generateChatMessageUrl, chatHistory, llm!!.key, toolsLLM)
+        var llmAnswer: ChatBotAnswer? = null
+
+        if (generateLLMAnswer?.body() != null) {
+            try {
+                llmAnswer = Json.decodeFromString<ChatBotAnswer>(generateLLMAnswer!!.body()) // десериализуем
+                chatHistory.add(MessageData(llmAnswer!!.message.role, llmAnswer!!.message.content, llmAnswer!!.message.tool_calls))
+                Utils.addRecordToFile("chatHistoryLogs.txt", "<${llmAnswer!!.message.role}>: ${llmAnswer!!.message.content} \n |||tool_calls|||: ${llmAnswer!!.message.tool_calls} \n\n\n")
+                if (llmAnswer!!.message.tool_calls.isEmpty()) {
+                    result.add(llmAnswer!!.message.content)
+                }
+                return llmAnswer
+            }
+            catch (e: Exception) {
+                println(e.toString())
+                return null
+            }
+        }
+        return null
+    }
 }
 
 var isMigrationsDone = false
@@ -126,9 +170,17 @@ fun main(): Unit = runBlocking {
     clientProvider = get(ClientProvider::class.java)
     chatBotManager = get(ChatBotManager::class.java)
 
-    val systemPrompt:String = Utils.getDescriptionFromFile("systemPrompt.txt") ?: ""
-    chatHistory.add(MessageData("system", systemPrompt))
+    var systemPrompt:String = Utils.getDescriptionFromFile("systemPrompt.txt") ?: ""
+    systemPrompt = systemPrompt.replace("&&&API_INTERNET", "$searchInternetUrl").replace("&&&API_EMBEDDING", "$embeddingUrl")
+    val webSearchToolJSON: String = Utils.getDescriptionFromFile("src/main/resources/Tools LLM/WebSearchTool.JSON") ?: ""
+    val databaseSearchToolJSON: String = Utils.getDescriptionFromFile("src/main/resources/Tools LLM/DatabaseSearchTool.JSON") ?: ""
 
+    toolsLLM.add(Json.decodeFromString<ToolData>(webSearchToolJSON)) //добавляем инструмент веб-поиска в список инструментов
+    toolsLLM.add(Json.decodeFromString<ToolData>(databaseSearchToolJSON)) //добавляем инструмент поиска в базе данных
+    chatHistory.add(MessageData("system", systemPrompt)) //добавялем системынй промпт
+
+    val logs = File("chatHistoryLogs.txt")
+    logs.writeText("")//чистим логи при перезапуске
     //1
     isMigrationsDone = databaseProvider.database.databaseMigrator.migrate()
     if  (!isMigrationsDone) {

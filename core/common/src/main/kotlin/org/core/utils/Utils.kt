@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.FileReader
 import org.core.dto.LLM
+import java.io.File
+import java.io.FileWriter
 
 object Utils {
 
@@ -20,6 +22,17 @@ object Utils {
         catch (e: Exception){
             println("Erorr: ${e.message}")
             return@withContext null
+        }
+    }
+
+    fun addRecordToFile(path:String, description: String)
+    {
+        val file = File(path)
+        try {
+            file.appendText(description, Charsets.UTF_8)
+        }
+        catch (e: Exception){
+            println("Erorr: ${e.message}")
         }
     }
 

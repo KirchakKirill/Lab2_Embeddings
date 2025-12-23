@@ -1,0 +1,29 @@
+{
+  "type": "function",
+  "function": {
+    "name": "searchInternet",
+    "description": "Search for similar games on the internet based on the given game description",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "url",
+        "query",
+        "max_results"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "The URL where the request should be sent to get the search result"
+        },
+        "query": {
+          "type": "string",
+          "description": "The search query string"
+        },
+        "max_results": {
+          "type": "integer",
+          "description": "Maximum results to return"
+        }
+      }
+    }
+  }
+}
