@@ -30,6 +30,8 @@ lateinit var chatBotManager: ChatBotManager
 const val embeddingUrl =  "http://localhost:11434/api/embeddings"
 const val generateChatMessageUrl =  "http://localhost:11434/api/chat"
 const val searchInternetUrl =  "https://ollama.com/api/web_search"
+val logs_path = "src/main/resources/prompts and logs/chatHistoryLogs.txt"
+val system_prompt_path = "src/main/resources/prompts and logs/systemPrompt.txt"
 
 val chatHistory: MutableList<MessageData> = mutableListOf()
 var toolsLLM: MutableList<ToolData> = mutableListOf()
@@ -45,7 +47,7 @@ val processor = object : HandlerProcessor {
         val result: MutableList<String> = mutableListOf()
         text?.let {
             chatHistory.add(MessageData("user", text + " &&&EMBMODE<$model> &&&METRICKMODE:<${metric!!.name}>"))
-            Utils.addRecordToFile("chatHistoryLogs.txt", "<user>: $text" + "\n&&&EMBMODE<$model> &&&METRICKMODE:<${metric!!.name}> \n\n")
+            Utils.addRecordToFile(logs_path, "<user>: $text" + "\n&&&EMBMODE<$model> &&&METRICKMODE:<${metric!!.name}> \n\n")
 
             var llmAnswer: ChatBotAnswer? = null
 
@@ -74,8 +76,8 @@ val processor = object : HandlerProcessor {
             toolsHistory.add(MessageData("tool", tool_name = "searchInternet", content = webSearchResult!!.body().takeIf { !it.isNullOrEmpty() } ?: "Не удалось получить данные из интернета"))
             toolsHistory.add(MessageData("tool", tool_name = "searchDatabase", content = databaseSearchResult.takeIf { !it.isNullOrEmpty() } ?: "Не удалось получить данные из базы данных"))
             chatHistory += toolsHistory
-            Utils.addRecordToFile("chatHistoryLogs.txt", "<tool>: ${webSearchResult!!.body()} \n")
-            Utils.addRecordToFile("chatHistoryLogs.txt","<tool>: ${databaseSearchResult.takeIf { !it.isNullOrEmpty() } ?: "Не удалось получить данные из базы данных"} \n")
+            Utils.addRecordToFile(logs_path, "<tool>: ${webSearchResult!!.body()} \n")
+            Utils.addRecordToFile(logs_path,"<tool>: ${databaseSearchResult.takeIf { !it.isNullOrEmpty() } ?: "Не удалось получить данные из базы данных"} \n")
 
             llmAnswer = llmRequest(result, llm)
             if (llmAnswer==null) { return result }
@@ -141,7 +143,7 @@ val processor = object : HandlerProcessor {
             try {
                 llmAnswer = Json.decodeFromString<ChatBotAnswer>(generateLLMAnswer!!.body()) // десериализуем
                 chatHistory.add(MessageData(llmAnswer!!.message.role, llmAnswer!!.message.content, llmAnswer!!.message.tool_calls))
-                Utils.addRecordToFile("chatHistoryLogs.txt", "<${llmAnswer!!.message.role}>: ${llmAnswer!!.message.content} \n |||tool_calls|||: ${llmAnswer!!.message.tool_calls} \n\n\n")
+                Utils.addRecordToFile(logs_path, "<${llmAnswer!!.message.role}>: ${llmAnswer!!.message.content} \n |||tool_calls|||: ${llmAnswer!!.message.tool_calls} \n\n\n")
                 if (llmAnswer!!.message.tool_calls.isEmpty()) {
                     result.add(llmAnswer!!.message.content)
                 }
@@ -170,7 +172,7 @@ fun main(): Unit = runBlocking {
     clientProvider = get(ClientProvider::class.java)
     chatBotManager = get(ChatBotManager::class.java)
 
-    var systemPrompt:String = Utils.getDescriptionFromFile("systemPrompt.txt") ?: ""
+    var systemPrompt:String = Utils.getDescriptionFromFile(system_prompt_path) ?: ""
     systemPrompt = systemPrompt.replace("&&&API_INTERNET", "$searchInternetUrl").replace("&&&API_EMBEDDING", "$embeddingUrl")
     val webSearchToolJSON: String = Utils.getDescriptionFromFile("src/main/resources/Tools LLM/WebSearchTool.JSON") ?: ""
     val databaseSearchToolJSON: String = Utils.getDescriptionFromFile("src/main/resources/Tools LLM/DatabaseSearchTool.JSON") ?: ""
@@ -178,8 +180,8 @@ fun main(): Unit = runBlocking {
     toolsLLM.add(Json.decodeFromString<ToolData>(webSearchToolJSON)) //добавляем инструмент веб-поиска в список инструментов
     toolsLLM.add(Json.decodeFromString<ToolData>(databaseSearchToolJSON)) //добавляем инструмент поиска в базе данных
     chatHistory.add(MessageData("system", systemPrompt)) //добавялем системынй промпт
-
-    val logs = File("chatHistoryLogs.txt")
+    
+    val logs = File(logs_path)
     logs.writeText("")//чистим логи при перезапуске
     //1
     isMigrationsDone = databaseProvider.database.databaseMigrator.migrate()
