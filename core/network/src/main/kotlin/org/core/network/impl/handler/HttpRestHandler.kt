@@ -65,8 +65,9 @@ internal class HttpRestHandler(private val processor: HandlerProcessor) : HttpHa
             }
 
             when (requestObj.llm) {
-                "qwen3-vl" -> currentTypeLLM = LLM.QWEN3
+                "qwen3-vl" -> currentTypeLLM = LLM.QWEN3VL
                 "nemotron-3-nano" -> currentTypeLLM = LLM.NEMOTRON3
+                "qwen3-next" -> currentTypeLLM = LLM.QWEN3NEXT
             }
 
             runBlocking {

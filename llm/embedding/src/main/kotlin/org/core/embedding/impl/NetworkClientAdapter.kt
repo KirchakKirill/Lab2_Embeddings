@@ -46,11 +46,12 @@ class NetworkClientAdapter(
         url: String,
         source: MutableList<MessageData>,
         model: String,
-        tools: List<ToolData>
+        tools: List<ToolData>,
+        think: String
     ): HttpResponse<String>? {
         return withContext(Dispatchers.IO) {
             try {
-                val body = Json.Default.encodeToString(MessageHistoryData(model, source, false, tools))
+                val body = Json.Default.encodeToString(MessageHistoryData(model, source, false, tools, think))
                 val request: HttpRequest = HttpRequest.newBuilder()
                     .uri(url.toUri())
                     .POST(HttpRequest.BodyPublishers.ofString(body))

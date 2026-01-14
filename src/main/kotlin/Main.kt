@@ -17,6 +17,8 @@ import org.koin.core.context.startKoin
 import org.koin.java.KoinJavaComponent.get
 import java.io.File
 import java.net.http.HttpResponse
+import kotlin.math.pow
+import kotlin.math.sqrt
 
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
@@ -51,7 +53,7 @@ val processor = object : HandlerProcessor {
 
             var llmAnswer: ChatBotAnswer? = null
 
-            llmAnswer = llmRequest(result, llm!!)
+            llmAnswer = llmRequest(result, llm!!, "low")
             if (llmAnswer==null) {
                 return result
             }
@@ -62,7 +64,6 @@ val processor = object : HandlerProcessor {
 
             var webSearchResult: HttpResponse<String>? = null
             var databaseSearchResult: String? = null
-
             val toolsHistory: MutableList<MessageData> = mutableListOf()
 
             llmAnswer.message.tool_calls.map { tool ->
@@ -79,8 +80,10 @@ val processor = object : HandlerProcessor {
             Utils.addRecordToFile(logs_path, "<tool>: ${webSearchResult!!.body()} \n")
             Utils.addRecordToFile(logs_path,"<tool>: ${databaseSearchResult.takeIf { !it.isNullOrEmpty() } ?: "Не удалось получить данные из базы данных"} \n")
 
-            llmAnswer = llmRequest(result, llm)
-            if (llmAnswer==null) { return result }
+            llmAnswer = llmRequest(result, llm, "low")
+            if (llmAnswer == null) {
+                return result
+            }
         }
         return result
     }
@@ -135,15 +138,15 @@ val processor = object : HandlerProcessor {
         return summaryDescriptionForLLM
     }
 
-    suspend fun llmRequest(result: MutableList<String>, llm: LLM): ChatBotAnswer? {
-        var generateLLMAnswer = chatBotManager.generateChatMessage(generateChatMessageUrl, chatHistory, llm!!.key, toolsLLM)
+    suspend fun llmRequest(result: MutableList<String>, llm: LLM, think: String = ""): ChatBotAnswer? {
+        var generateLLMAnswer = chatBotManager.generateChatMessage(generateChatMessageUrl, chatHistory, llm!!.key, toolsLLM, think)
         var llmAnswer: ChatBotAnswer? = null
 
         if (generateLLMAnswer?.body() != null) {
             try {
                 llmAnswer = Json.decodeFromString<ChatBotAnswer>(generateLLMAnswer!!.body()) // десериализуем
-                chatHistory.add(MessageData(llmAnswer!!.message.role, llmAnswer!!.message.content, llmAnswer!!.message.tool_calls))
-                Utils.addRecordToFile(logs_path, "<${llmAnswer!!.message.role}>: ${llmAnswer!!.message.content} \n |||tool_calls|||: ${llmAnswer!!.message.tool_calls} \n\n\n")
+                chatHistory.add(MessageData(llmAnswer!!.message.role, llmAnswer!!.message.content, llmAnswer!!.message.tool_calls, llmAnswer!!.message.thinking))
+                Utils.addRecordToFile(logs_path, "<${llmAnswer!!.message.role}>: ${llmAnswer!!.message.content} \n|||tool_calls|||: ${llmAnswer!!.message.tool_calls}\n <thinking>${llmAnswer!!.message.thinking.toString()} \n\n\n")
                 if (llmAnswer!!.message.tool_calls.isEmpty()) {
                     result.add(llmAnswer!!.message.content)
                 }
@@ -180,16 +183,17 @@ fun main(): Unit = runBlocking {
     toolsLLM.add(Json.decodeFromString<ToolData>(webSearchToolJSON)) //добавляем инструмент веб-поиска в список инструментов
     toolsLLM.add(Json.decodeFromString<ToolData>(databaseSearchToolJSON)) //добавляем инструмент поиска в базе данных
     chatHistory.add(MessageData("system", systemPrompt)) //добавялем системынй промпт
-    
+
     val logs = File(logs_path)
     logs.writeText("")//чистим логи при перезапуске
+
     //1
     isMigrationsDone = databaseProvider.database.databaseMigrator.migrate()
     if  (!isMigrationsDone) {
         return@runBlocking
     }
     //2
-    val games:List<GameInfo> =  clientProvider.client.dataSource.getNRequest("https://api.rawg.io/api/games/",100)
+    val games:List<GameInfo> =  clientProvider.client.dataSource.getNRequest("https://api.rawg.io/api/games/",10)
 
     //3
     val info = Mapper.mapperGameData(games)

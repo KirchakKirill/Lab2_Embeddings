@@ -51,17 +51,20 @@
                 <div>
                     <select id="LLM-type-select">
                         <option value="qwen3-vl">
-                            <span class="option-label" selected>QWEN3-vl</span>
+                        <span class="option-label" selected>QWEN3-vl</span>
                         </option>
                         <option value="nemotron-3-nano">
                             <span class="option-label" selected>Nemotron-3-nano</span>
+                        </option>
+                        <option value="qwen3-next">
+                            <span class="option-label" selected>QWEN3-next</span>
                         </option>
                     </select>
                     <p class="clarification">LLM</p>
                 </div>
             </div>
             <div >
-                <button id="clearData" onClick="clearHistory()"></button>
+                <!--<button id="clearData" onClick="clearHistory()"></button>-->
                 <button id="sendData" onclick="postHttpServer()"></button>
             </div>
         </div>

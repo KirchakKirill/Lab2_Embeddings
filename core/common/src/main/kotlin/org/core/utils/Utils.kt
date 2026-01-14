@@ -5,7 +5,6 @@ import kotlinx.coroutines.withContext
 import java.io.FileReader
 import org.core.dto.LLM
 import java.io.File
-import java.io.FileWriter
 
 object Utils {
 
@@ -49,14 +48,6 @@ object Utils {
             LLM.MXBAI.key -> {
                 LLM.MXBAI.tableName
             }
-
-            LLM.QWEN3.key -> {
-                LLM.QWEN3.tableName
-            }
-            LLM.NEMOTRON3.key -> {
-                LLM.QWEN3.tableName
-            }
-
             else -> null
         }
     }

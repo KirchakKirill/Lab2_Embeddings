@@ -18,8 +18,8 @@ class ChatBotManagerImpl : ChatBotManager {
         )
     }
 
-    override suspend fun generateChatMessage(url: String, chatHistory: MutableList<MessageData>, model: String, tools: List<ToolData>): HttpResponse<String>? {
-        return client.generateChatMessage(url, chatHistory, model, tools)
+    override suspend fun generateChatMessage(url: String, chatHistory: MutableList<MessageData>, model: String, tools: List<ToolData>, think: String): HttpResponse<String>? {
+        return client.generateChatMessage(url, chatHistory, model, tools, think)
     }
 
     override suspend fun searchInternet(url: String, query: String, max_results: Int): HttpResponse<String>? {

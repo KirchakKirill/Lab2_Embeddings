@@ -12,7 +12,9 @@ data class MessageHistoryData (
     @SerialName("stream")
     val stream: Boolean,
     @SerialName("tools")
-    val tools: List<ToolData> = listOf()
+    val tools: List<ToolData> = listOf(),
+    @SerialName("think")
+    val think: String? = null
 )
 
 @Serializable

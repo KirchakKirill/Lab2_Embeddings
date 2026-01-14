@@ -116,6 +116,10 @@ button {
     background-image: url('https://static.thenounproject.com/png/5507757-200.png');
 }
 
+#thinkMode {
+    background-image: url('https://cdn-icons-png.flaticon.com/512/2910/2910914.png');
+}
+
 button:hover {
     background-color: #dcffd1;
 }

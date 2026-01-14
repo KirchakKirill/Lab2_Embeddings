@@ -12,7 +12,9 @@ data class MessageData(
     @SerialName("tool_calls")
     val tool_calls: List<OneTool> = listOf(),
     @SerialName("tool_name")
-    val tool_name: String? = null
+    val tool_name: String? = null,
+    @SerialName("thinking")
+    val thinking: String? = null
 )
 
 @Serializable
